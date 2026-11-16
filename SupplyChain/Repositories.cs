@@ -4,6 +4,8 @@ public record Supplier(int Id, string Name, string TaxId);
 
 public record PurchaseOrder(int Id, string Supplier, string Warehouse, string Status, decimal Total, long Items);
 
+public record LowStockProduct(int Id, string Sku, string Name, int MinStock, int TotalStock);
+
 public abstract class Repository
 {
     private readonly NpgsqlConnection _connection;
@@ -50,7 +52,7 @@ public class PurchaseOrderRepository : Repository
 
     public int Create(int supplierId, int warehouseId, int userId)
     {
-        using var cmd = Command("CALL sp_create_purchase_order(@supplier, @warehouse, @user, NULL)");
+        using var cmd = Command("CALL sp_create_purchase_order(@supplier, @warehouse, @user, NULL::int)");
         cmd.Parameters.AddWithValue("supplier", supplierId);
         cmd.Parameters.AddWithValue("warehouse", warehouseId);
         cmd.Parameters.AddWithValue("user", userId);
@@ -63,6 +65,14 @@ public class PurchaseOrderRepository : Repository
         cmd.Parameters.AddWithValue("order", orderId);
         cmd.Parameters.AddWithValue("product", productId);
         cmd.Parameters.AddWithValue("quantity", quantity);
+        cmd.Parameters.AddWithValue("user", userId);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void Send(int orderId, int userId)
+    {
+        using var cmd = Command("CALL sp_send_purchase_order(@order, @user)");
+        cmd.Parameters.AddWithValue("order", orderId);
         cmd.Parameters.AddWithValue("user", userId);
         cmd.ExecuteNonQuery();
     }
@@ -86,6 +96,25 @@ public class PurchaseOrderRepository : Repository
         while (reader.Read())
             result.Add(new PurchaseOrder(reader.GetInt32(0), reader.GetString(1), reader.GetString(2),
                                          reader.GetString(3), reader.GetDecimal(4), reader.GetInt64(5)));
+        return result;
+    }
+}
+
+public class StockRepository : Repository
+{
+    public StockRepository(NpgsqlConnection connection, NpgsqlTransaction transaction)
+        : base(connection, transaction) { }
+
+    public List<LowStockProduct> GetLowStock()
+    {
+        using var cmd = Command(
+            "SELECT product_id, sku, name, min_stock_level, total_stock FROM vw_low_stock ORDER BY product_id");
+        using var reader = cmd.ExecuteReader();
+
+        var result = new List<LowStockProduct>();
+        while (reader.Read())
+            result.Add(new LowStockProduct(reader.GetInt32(0), reader.GetString(1), reader.GetString(2),
+                                           reader.GetInt32(3), reader.GetInt32(4)));
         return result;
     }
 }

@@ -7,6 +7,7 @@ public class UnitOfWork : IDisposable
 
     public SupplierRepository Suppliers { get; }
     public PurchaseOrderRepository PurchaseOrders { get; }
+    public StockRepository Stock { get; }
 
     public UnitOfWork(string connectionString)
     {
@@ -16,6 +17,7 @@ public class UnitOfWork : IDisposable
 
         Suppliers = new SupplierRepository(_connection, _transaction);
         PurchaseOrders = new PurchaseOrderRepository(_connection, _transaction);
+        Stock = new StockRepository(_connection, _transaction);
     }
 
     public void Commit() => _transaction.Commit();
